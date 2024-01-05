@@ -2,12 +2,15 @@ package ftt.cityclaim
 
 import com.gmail.sneakdevs.diamondeconomy.DiamondUtils
 import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig
+import com.mojang.brigadier.arguments.ArgumentType
+import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.context.CommandContext
 import me.drex.itsours.claim.ClaimList
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.minecraft.server.MinecraftServer
+import net.minecraft.server.command.CommandManager.argument
 import net.minecraft.server.command.CommandManager.literal
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
@@ -36,16 +39,27 @@ object CityClaim : ModInitializer {
         };
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
+            dispatcher.register(literal("register_claim")
+                .then(argument("cost", IntegerArgumentType.integer(1))
+                    .then(argument("days_per_rent", IntegerArgumentType.integer(1))
+                        .executes { context ->
+                            val cost = IntegerArgumentType.getInteger(context, "cost")
+                            val daysPerRent = IntegerArgumentType.getInteger(context, "days_per_rent")
+                            registerClaim(context, cost, daysPerRent)
+                        }
+                    )
+                )
+            )
             dispatcher.register(literal("borrow_claim").executes { context -> borrowClaim(context) })
-            dispatcher.register(literal("register_claim").executes { context -> registerClaim(context) })
         }
 
     }
 
-    private fun registerClaim(context: CommandContext<ServerCommandSource>): Int {
+    private fun registerClaim(context: CommandContext<ServerCommandSource>, cost: Int, daysPerRent: Int): Int {
+
         val player = context.source.player ?: return 0
         val claim = ClaimList.getClaimAt(player).getOrNull() ?: return 0
-        val result = claimManager.registerClaim(claim, 25, 7)
+        val result = claimManager.registerClaim(claim, cost, daysPerRent)
         if (result) {
             context.source.sendFeedback({ Text.literal("註冊成功") }, false)
             return 1
