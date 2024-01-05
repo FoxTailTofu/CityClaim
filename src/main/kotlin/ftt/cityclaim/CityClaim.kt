@@ -1,79 +1,81 @@
 package ftt.cityclaim
 
+import com.gmail.sneakdevs.diamondeconomy.DiamondUtils
+import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig
 import com.mojang.brigadier.context.CommandContext
-import me.drex.itsours.claim.Claim
 import me.drex.itsours.claim.ClaimList
-import me.drex.itsours.util.ClaimBox
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.CommandManager.literal
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.Text
-import net.minecraft.util.math.Vec3i
+import net.minecraft.util.WorldSavePath
 import org.slf4j.LoggerFactory
+import java.io.File
 import kotlin.jvm.optionals.getOrNull
+import com.gmail.sneakdevs.diamondeconomy.sql.DatabaseManager as MoneyDB
+import ftt.sql.SQLiteDatabaseManager as ClaimDB
 
 
 object CityClaim : ModInitializer {
 
+    const val MODID = "cityclaim"
     private val logger = LoggerFactory.getLogger("cityclaim")
+    private val moneyManager = DiamondUtils.getDatabaseManager();
+    private val claimManager = ClaimDB()
     override fun onInitialize() {
-        CommandRegistrationCallback.EVENT.register { dispatcher, registryAccess, environment ->
-            dispatcher.register(literal("show_claim").executes { context -> showClaim(context) })
-            dispatcher.register(literal("create_claim").executes { context -> createClaim(context) })
-            dispatcher.register(literal("get_claim").executes { context -> getClaim(context) })
+
+        ServerLifecycleEvents.SERVER_STARTING.register { server ->
+            val file = server.getSavePath(WorldSavePath.ROOT).resolve("$MODID.sqlite").toFile();
+            if (!file.exists()) {
+                file.createNewFile()
+            }
+            claimManager.createNewDatabase(file)
+        };
+
+        CommandRegistrationCallback.EVENT.register { dispatcher, _, _ ->
             dispatcher.register(literal("borrow_claim").executes { context -> borrowClaim(context) })
+            dispatcher.register(literal("register_claim").executes { context -> registerClaim(context) })
         }
 
     }
 
-    private fun showClaim(context: CommandContext<ServerCommandSource>): Int {
-        val player = context.source.player ?: return 0
-        val claims = ClaimList.getClaimsFrom(player.uuid)
-        context.source.sendFeedback({
-            Text.literal(claims.joinToString(",", "<", ">", -1, "...", null))
-        }, false)
-
-        return 1
-    }
-
-    private fun createClaim(context: CommandContext<ServerCommandSource>): Int {
-        val player = context.source.player ?: return 0
-        val x = player.x.toInt()
-        val y = player.y.toInt()
-        val z = player.z.toInt()
-        val box = ClaimBox.create(
-            Vec3i(x - 5, y - 5, z - 5),
-            Vec3i(x + 5, y + 5, z + 5)
-        )
-        val newClaim = Claim("AAA", player.uuid, box, player.serverWorld)
-        ClaimList.addClaim(newClaim)
-        context.source.sendFeedback({ Text.literal("bar") }, false)
-
-        return 1
-    }
-
-    private fun getClaim(context: CommandContext<ServerCommandSource>): Int {
+    private fun registerClaim(context: CommandContext<ServerCommandSource>): Int {
         val player = context.source.player ?: return 0
         val claim = ClaimList.getClaimAt(player).getOrNull() ?: return 0
-        val boxX = claim.box.minX.toString() + " ~ " + claim.box.maxX.toString()
-        val boxY = claim.box.minY.toString() + " ~ " + claim.box.maxY.toString()
-        val boxZ = claim.box.minZ.toString() + " ~ " + claim.box.maxZ.toString()
-        context.source.sendFeedback({ Text.literal(claim.name) }, false)
-        context.source.sendFeedback({ Text.literal(boxX) }, false)
-        context.source.sendFeedback({ Text.literal(boxY) }, false)
-        context.source.sendFeedback({ Text.literal(boxZ) }, false)
-
-        return 1
+        val result = claimManager.registerClaim(claim, 25, 7)
+        if (result) {
+            context.source.sendFeedback({ Text.literal("註冊成功") }, false)
+            return 1
+        }
+        context.source.sendFeedback({ Text.literal("註冊失敗") }, false)
+        return 0
     }
-
 
     private fun borrowClaim(context: CommandContext<ServerCommandSource>): Int {
         val player = context.source.player ?: return 0
         val claim = ClaimList.getClaimAt(player).getOrNull() ?: return 0
-        val trustedRole = claim.roleManager.getRole("trusted")?: return 0
-        trustedRole.players().add(player.uuid)
+        val rentable = claimManager.getClaim(claim) ?: return 0
+        val money = moneyManager.getBalanceFromUUID(player.uuid.toString())
+        val price = rentable.cost
 
+        if (money < price) {
+            context.source.sendFeedback({ Text.literal("窮逼，你只有 $money 元，這塊地要 $price 元才可以租") }, false)
+            return 0
+        }
+        val trustedRole = claim.roleManager.getRole("trusted") ?: return 0
+
+        val result = claimManager.borrowClaim(claim, player)
+
+        if (result == 0) {
+            context.source.sendFeedback({ Text.literal("租用失敗") }, false)
+            return 0
+        }
+        moneyManager.changeBalance(player.uuid.toString(), -price)
+        trustedRole.players().add(player.uuid)
+        context.source.sendFeedback({ Text.literal("你租用了領地 ${claim.name}！剩下 ${money - price} 元") }, false)
         return 1
     }
 }
