@@ -11,16 +11,12 @@ base {
 	archivesName = project.archives_base_name
 }
 
+
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
-//	maven {
-//		url "https://maven.nucleoid.xyz/"
-//		name "Nucleoid"
-//	}
+	mavenCentral()
+	maven { url "https://maven.fabricmc.net/" }
+	maven { url "https://maven.shedaniel.me/" }
+	maven { url "https://maven.nucleoid.xyz/" }
 }
 
 loom {
@@ -44,13 +40,14 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	modImplementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
-	// Uncomment the following line to enable the deprecated Fabric API modules. 
+	// Uncomment the following line to enable the deprecated Fabric API modules.
 	// These are included in the Fabric API production distribution and allow you to update your mod to the latest modules at a later more convenient time.
 
 	// modImplementation "net.fabricmc.fabric-api:fabric-api-deprecated:${project.fabric_version}"
-	//	modImplementation include("eu.pb4:placeholder-api:2.3.0+1.20.3")
+	implementation(include("org.xerial:sqlite-jdbc:${project.sqlite_version}"))
 	modImplementation files('dependencies/diamondeconomy-1.5.61.20.2.jar')
 	modImplementation files('dependencies/ItsOurs-1.4.0-mc-1.20.3-pre1.jar')
+	modImplementation include("me.lucko:fabric-permissions-api:${project.permission_api_version}")
 }
 
 processResources {
