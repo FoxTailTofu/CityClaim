@@ -7,7 +7,7 @@ import net.minecraft.server.MinecraftServer
 import java.sql.ResultSet
 
 
-class CityclaimManager(server: MinecraftServer) {
+class  CityclaimManager(server: MinecraftServer) {
 
     private var database: Database;
 

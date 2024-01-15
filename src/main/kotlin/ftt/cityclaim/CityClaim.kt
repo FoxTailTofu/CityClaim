@@ -256,6 +256,11 @@ object CityClaim : ModInitializer {
             return 0
         }
 
+        if((rentableClaim.endTime ?: 0) > System.currentTimeMillis()) {
+            sendFeedback(context, "該領地已被租借")
+            return 0
+        }
+
         if (rentableClaim.renew == true && renewClaim(rentableClaim)) {
             sendFeedback(context, "該領地已被租借")
             return 0
