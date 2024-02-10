@@ -22,7 +22,7 @@ class  CityclaimManager(server: MinecraftServer) {
 
     fun renewClaim(claim: PlayerClaimData): Int {
         val now = System.currentTimeMillis()
-        val endTime = now + claim.daysPerRent * 24 * 60 * 60 * 1000
+        val endTime = now + (claim.daysPerRent.toLong() * 24 * 3600 * 1000)
         val sql = "UPDATE player_claim_data SET  end_time = ? WHERE claim = ? AND (end_time < ? OR end_time IS NULL);"
         return database.prepare(sql, {
             it.setLong(1, endTime)
@@ -178,7 +178,7 @@ class  CityclaimManager(server: MinecraftServer) {
                 days_per_rent INTEGER NOT NULL,
                 name TEXT,
                 uuid TEXT,
-                end_time LONG,
+                end_time INTEGER,
                 renew BOOLEAN,
                 UNIQUE("claim")
             );
